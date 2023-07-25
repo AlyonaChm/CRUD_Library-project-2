@@ -1,49 +1,46 @@
 package ua.chmil.spring.dao;
 
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Controller;
 import ua.chmil.spring.models.Person;
 
-import java.util.ArrayList;
 import java.util.List;
 
-//замість БД тимчасово використовуємо List
 @Component // помітили цією анотацією аби Spring міг створити bean цього класу
 public class PersonDAO {
-   private static int PEOPLE_COUNT; // для автоматично присвоєння id під час створення Person
-   private List<Person> people;
 
-   // рядок 13-21 - це блок ініціалізації. Його можна було зробити через конструктор
-   // або через такий блок - {}
-   {
-      people = new ArrayList<>();
-      people.add(new Person(++PEOPLE_COUNT, "Tom"));
-      people.add(new Person(++PEOPLE_COUNT, "Bob"));
-      people.add(new Person(++PEOPLE_COUNT, "Mike"));
-      people.add(new Person(++PEOPLE_COUNT, "Katy"));
-   }
-   public List<Person> index(){
-      return people;
-   }
-   public Person show(int id) {
-      // можна було використати for loop
-      return people.stream().filter(person -> person.getId() == id).findAny().orElse(null);
-   }
+    private final JdbcTemplate jdbcTemplate;
 
-   public void save(Person person){
-      person.setId(++PEOPLE_COUNT);
-      people.add(person);
-   }
+    @Autowired
+    public PersonDAO(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
-   public void update(int id, Person updatedPerson) {
-      Person personToBeUpdated = show(id);
+    public List<Person> index() {
+        return jdbcTemplate.query("SELECT * FROM Person", new BeanPropertyRowMapper<>(Person.class)); // new PersonMapper() - це RowMapper. Це такий об'єкт, який відображає рядки з таблиці в сутність - об'єкт класу Person
+    }
 
-      personToBeUpdated.setName(updatedPerson.getName());
-   }
+    // Цей метод повертає або null, якщо Person з вказаним id не була знайдена. В реальному app можна замість null вказати об'єкт з помилкою.
+    // або 1 рядок - власне, якщо Person з id вказаним id була знайдена
+    // .findAny() повертає Optional
+    public Person show(int id) {
+        return jdbcTemplate.query("SELECT  * FROM Person WHERE id = ?", new Object[]{id}, new BeanPropertyRowMapper<>(Person.class))
+                .stream().findAny().orElse(null);
+    }
 
-   public void delete(int id) {
-      people.removeIf(p -> p.getId() == id); //ми проходимося по всім id і коли id співпадає з тим id, який ми ввели, то ми видаляємо його.
+    public void save(Person person) {
+        jdbcTemplate.update("INSERT INTO Person VALUES (1, ?, ?, ?)", person.getName(),
+                person.getAge(), person.getEmail());
+    }
 
-   }
+    public void update(int id, Person updatedPerson) {
+       jdbcTemplate.update("UPDATE Person SET name=?, age=?, email=? WHERE id=?", updatedPerson.getName(),
+               updatedPerson.getAge(), updatedPerson.getEmail(), id);
+    }
+
+    public void delete(int id) {
+        jdbcTemplate.update("DELETE FROM Person WHERE id=?", id);
+    }
 }
